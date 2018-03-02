@@ -1,7 +1,7 @@
 #!/bin/bash
 BUILD_FOLDER=build
 VERSION=$(cat core/banner.go | grep Version | cut -d '"' -f 2)
-CROSS_LIB=/tmp/libpcap-1.8.1/libpcap.a
+CROSS_LIB=-L/tmp/libpcap-1.8.1/
 
 bin_dep() {
     BIN=$1
@@ -11,6 +11,16 @@ bin_dep() {
 host_dep() {
     HOST=$1
     ping -c 1 $HOST > /dev/null || { echo "@ Virtual machine host $HOST not visible !"; exit 1; }
+}
+
+create_archive() {
+    bin_dep 'zip'
+
+    OUTPUT=$1
+
+    echo "@ Creating archive $OUTPUT ..."
+    zip -j "$OUTPUT" bettercap ../README.md ../LICENSE.md > /dev/null
+    rm -rf bettercap bettercap.exe
 }
 
 download_pcap() {
@@ -43,12 +53,12 @@ xcompile_pcap() {
     make CFLAGS='-w' -j4 > /dev/null
 }
 
-build_linux_amd64() {
+build_linux_amd64_static() {
     echo "@ Building linux/amd64 ..."
-    go build -o bettercap ..
+    go build --ldflags '-linkmode external -extldflags "-static -s -w"' -v -o bettercap ..
 }
 
-build_linux_arm7() {
+build_linux_arm7_static() {
     OLD=$(pwd)
 
     download_pcap
@@ -59,7 +69,7 @@ build_linux_arm7() {
     env CC=arm-linux-gnueabi-gcc CGO_ENABLED=1 GOOS=linux GOARCH=arm GOARM=7 CGO_LDFLAGS="$CROSS_LIB" go build -o bettercap ..
 }
 
-build_linux_mips() {
+build_linux_mips_static() {
     OLD=$(pwd)
 
     download_pcap
@@ -70,7 +80,7 @@ build_linux_mips() {
     env CC=mips-linux-gnu-gcc CGO_ENABLED=1 GOOS=linux GOARCH=mips CGO_LDFLAGS="$CROSS_LIB" go build -o bettercap ..
 }
 
-build_linux_mipsle() {
+build_linux_mipsle_static() {
     OLD=$(pwd)
 
     download_pcap
@@ -81,7 +91,7 @@ build_linux_mipsle() {
     env CC=mipsel-linux-gnu-gcc CGO_ENABLED=1 GOOS=linux GOARCH=mipsle CGO_LDFLAGS="$CROSS_LIB" go build -o bettercap ..
 }
 
-build_linux_mips64() {
+build_linux_mips64_static() {
     OLD=$(pwd)
 
     download_pcap
@@ -92,7 +102,7 @@ build_linux_mips64() {
     env CC=mips64-linux-gnuabi64-gcc CGO_ENABLED=1 GOOS=linux GOARCH=mips64 CGO_LDFLAGS="$CROSS_LIB" go build -o bettercap ..
 }
 
-build_linux_mips64le() {
+build_linux_mips64le_static() {
     OLD=$(pwd)
 
     download_pcap
@@ -146,28 +156,21 @@ build_android_arm() {
     scp -C -P 8022 root@shield:$DIR/bettercap . 
 }
 
-create_archive() {
-    bin_dep 'zip'
-
-    OUTPUT=$1
-
-    echo "@ Creating archive $OUTPUT ..."
-    zip -j "$OUTPUT" bettercap ../README.md ../LICENSE.md > /dev/null
-    rm -rf bettercap bettercap.exe
-}
-
 rm -rf $BUILD_FOLDER
 mkdir $BUILD_FOLDER
 cd $BUILD_FOLDER
 
-build_android_arm && create_archive bettercap_android_arm_$VERSION.zip
-build_linux_amd64 && create_archive bettercap_linux_amd64_$VERSION.zip
-build_linux_arm7 && create_archive bettercap_linux_arm7_$VERSION.zip
-build_linux_mips && create_archive bettercap_linux_mips_$VERSION.zip
-build_linux_mipsle && create_archive bettercap_linux_mipsle_$VERSION.zip
-build_linux_mips64 && create_archive bettercap_linux_mips64_$VERSION.zip
-build_linux_mips64le && create_archive bettercap_linux_mips64le_$VERSION.zip
+
+build_linux_amd64_static && create_archive bettercap_linux_amd64_$VERSION.zip
+build_linux_arm7_static && create_archive bettercap_linux_arm7_$VERSION.zip
+build_linux_mips_static && create_archive bettercap_linux_mips_$VERSION.zip
+build_linux_mipsle_static && create_archive bettercap_linux_mipsle_$VERSION.zip
+build_linux_mips64_static && create_archive bettercap_linux_mips64_$VERSION.zip
+build_linux_mips64le_static && create_archive bettercap_linux_mips64le_$VERSION.zip
+
+# these are still not static :(
 build_macos_amd64 && create_archive bettercap_macos_amd64_$VERSION.zip
+build_android_arm && create_archive bettercap_android_arm_$VERSION.zip
 build_windows_amd64 && create_archive bettercap_windows_amd64_$VERSION.zip
 sha256sum * > checksums.txt
 
@@ -176,6 +179,5 @@ echo
 du -sh *
 
 cd --
-
 
 
